@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Parent Note Generator</title>
+  <style>
+    body, textarea {
+      font-family: sans-serif;
+      font-size: 15px;
+    }
+  </style>
+</head>
+<body onload="onBodyLoad()" style="max-width: 700px">
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+  <label for="trainerNameInput">Trainer Name (you):</label>
+  <input type="text" id="trainerNameInput">
+  <br>
+  <label for="studentSearch">Student:</label>
+  <input autocomplete="off" onkeydown="onStudentSearchKeyDown(event)" onkeyup="onStudentSearchKeyUp()" type="text" name="studentSearch" id="studentSearch">
+  <p id="selectedStudentConfirmationText"></p>
+  <div id="studentSearchResults"></div>
+  <form id="clickableNoteBodyOptions"></form>
+  <br>
+  <button id="generateOutput" onclick="generateOutput()">Generate Note</button>
+  <button id="printOutput" onclick="initiatePrint()">Print Note</button>
+  <br>
+  <label for="outputTextArea">Output:</label>
+  <br>
+  <textarea onkeydown="onOutputTextAreaKeydown(event)" name="Output Text Area" id="outputTextArea" cols="60" rows="30"></textarea>
+  <br>
+  <hr>
+  <label for="noteBodyOptionsTextArea">Note Body Options:</label>
+  <br>
+  <textarea name="Note Body Options Text Area" id="noteBodyOptionsTextArea" cols="60" rows="30"></textarea>
+  <br>
+  <button id="saveNoteBodyOptionsButton" onclick="saveNoteBodyOptions()">Save Note Body Options</button>
+  <br>
+  <p><i>Supported placeholder brackets: [first], [last], [level], [trainer], [date], [he/him/his/himself/he's]</i></p>
+  <hr>
+  <label for="allStudentsList">Student roster:</label>
+  <br>
+  <textarea name="All Students List" id="allStudentsList" cols="40" rows="30"></textarea>
+  <br>
+  <button id="saveStudents" onclick="saveStudentRoster()">Save Student Roster</button>
+  <script>
+    let allStudents = []
+    let selectedStudent = null
+    let searchResults = []
+    let noteBodyOptions = []
+    let pronounMap = {
+      "he": { "male": "he", "female": "she"},
+      "him": { "male": "him", "female": "her"},
+      "his": { "male": "his", "female": "her"},
+      "himself": { "male": "himself", "female": "herself"},
+      "he's": { "male": "he's", "female": "she's"}
+    }
+    let pronounMapKeys = Object.keys(pronounMap)
+    function onBodyLoad(){
+      //Load allStudents from localStorage
+      let allStudentsFromLocalStorage = localStorage.getItem("SAM_parent_note_generator_allStudents")
+      if(allStudentsFromLocalStorage !== null){
+        allStudents = JSON.parse(allStudentsFromLocalStorage)
+        console.log("Found allStudents in local Storage")
+      }
+      let noteBodyOptionsFromLocalStorage = localStorage.getItem("SAM_parent_note_generator_noteBodyOptions")
+      if(noteBodyOptionsFromLocalStorage !== null){
+        noteBodyOptions = JSON.parse(noteBodyOptionsFromLocalStorage)
+        console.log("Found noteBodyOptions in local Storage")
+        generateClickableNoteBodyOptions();
+      }
+      setupSaveAndLoadFromLocalStorage('allStudentsList')
+      setupSaveAndLoadFromLocalStorage('noteBodyOptionsTextArea')
+      setupSaveAndLoadFromLocalStorage('trainerNameInput')
+    }
+    
+    function initiatePrint(){
+      let outputText = $("#outputTextArea").val()
+      let dateText = new Date().toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric"
+      })
+      localStorage.setItem("SAM_parent_note_generator_outputText", outputText)
+      let outputTitle = "Parent Note"
+      if(selectedStudent){
+        outputTitle = selectedStudent.first + " " + selectedStudent.last + " " + dateText + " Parent Note"
+      }
+      localStorage.setItem("SAM_parent_note_generator_outputTitle", outputTitle)
+      
+      window.open("print.html", "_blank")
+    }
+    
+    function generateOutput(){
+      if(selectedStudent == null){
+        alert("Select a student first")
+        return false
+      }
+      //Get date in mmm dd, yyyy format as string
+      let dateText = new Date().toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric"
+      })
+      
+      let outputText = ""
+      for(let i = 0; i < noteBodyOptions.length; i ++){
+        if( $("#option_" + i).is(":checked")){
+          let paragraph = noteBodyOptions[i].body
+          paragraph = paragraph.replaceAll("[first]", selectedStudent.first)
+          paragraph = paragraph.replaceAll("[last]", selectedStudent.last)
+          paragraph = paragraph.replaceAll("[level]", selectedStudent.level)
+          paragraph = paragraph.replaceAll("[trainer]", trainerNameInput.value)
+          paragraph = paragraph.replaceAll("[date]", dateText)
+          for(let i in pronounMapKeys){
+            let key = pronounMapKeys[i]
+            paragraph = paragraph.replaceAll(`[${key}]`, pronounMap[key][selectedStudent.gender] )
+            let capitalizedKey = capitalizeString(key)
+            paragraph = paragraph.replaceAll(`[${capitalizedKey}]`, capitalizeString(pronounMap[key][selectedStudent.gender]) )
+          }
+          outputText += paragraph
+        }
+      }
+      if(outputText.includes("[") || outputText.includes("]")){
+        alert("Warning: [Square brackets] were found in the generated text. Replace these if necessary.")
+      }
+      $("#outputTextArea").val(outputText)
+      localStorage.setItem("SAM_parent_note_generator_outputText", outputText)
+      let outputTitle = selectedStudent.first + " " + selectedStudent.last + " " + dateText + " Parent Note"
+      localStorage.setItem("SAM_parent_note_generator_outputTitle", outputTitle)
+      return true
+    }
+    
+    function onOutputTextAreaKeydown(event){
+      let ctrlOrCmd = event.ctrlKey || event.metaKey
+      // if(ctrlOrCmd && event.key == "Enter"){
+      if(event.shiftKey && event.key == "Enter"){
+        initiatePrint();
+      }
+    }
+    
+    function capitalizeString(myString){
+      return myString.charAt(0).toUpperCase() + myString.slice(1)
+    }
+    
+    function onStudentSearchKeyDown(event){
+      //If user presses Enter, accept first search result
+      if(event.key == "Enter" && searchResults.length > 0){
+        selectStudent(searchResults[0].index)
+        //Focus the first element with class clickable-note-option-checkbox
+        $("#clickableNoteBodyOptions").children().first().focus()
+      }
+    }
+    
+    function onStudentSearchKeyUp(){
+      //Update search results
+      $("#studentSearchResults").empty()
+      let searchValue = lowercaseAlphabetOnly(studentSearch.value)
+      searchResults = []
+      for(let i = 0; i < allStudents.length; i ++){
+        let student = allStudents[i]
+        let studentName = lowercaseAlphabetOnly(student.first + student.last)
+        if( studentName.startsWith(searchValue) ){
+          //Append to start of searchResults
+          searchResults.unshift(student)
+        }
+        else if( studentName.includes(searchValue) ){
+          //Append to end of searchResults
+          searchResults.push(student)
+        }
+      }
+      if(searchValue.length > 0 && searchResults.length > 0 && searchResults.length < 10){
+        for(let i = 0; i < searchResults.length; i++){
+          let student = searchResults[i]
+          let searchResultButton = $(`<button id="searchResult_${student.index}" onclick="selectStudent(${student.index})">${student.first} ${student.last}</button>`)
+          $("#studentSearchResults").append(searchResultButton)
+          $("#studentSearchResults").append( $("<br>"))
+        }
+      }
+    }
+    
+    function selectStudent(indexOfSelectedStudent){
+      selectedStudent = allStudents[indexOfSelectedStudent]
+      $("#studentSearchResults").empty()
+      $("#studentSearch").val("")
+      $("#selectedStudentConfirmationText").text("Selected student: " + selectedStudent.first + " " + selectedStudent.last)
+    }
+    
+    function lowercaseAlphabetOnly(myString){
+      //Return the string with all non-alphabet letters removed
+      return myString.replace(/[^a-z]/gi, '').toLowerCase()
+    }
+    
+    function saveStudentRoster(){
+      /*
+      Format:
+      First,Last,HeOrSheOrThey,Level
+      First,Last,HeORSheyOrThey,Level
+      */
+     console.log("Saving student roster")
+     $("#studentSearchResults").empty()
+      let allStudentsListValue = allStudentsList.value.split("\n")
+      let validEntries = 0
+      for(let i = 0; i < allStudentsListValue.length; i++){
+        let line = allStudentsListValue[i].split(",")
+        if(line.length === 4){
+          if(line[2].toLowerCase() !== "he" && line[2].toLowerCase() !== "she"){
+            alert("Please input 'he' or 'she' as a pronoun for this student: " + line[0] + " " + line[1] + ".")
+            if("they them their theirs".includes(line[2].toLowerCase())){
+              alert("Unfortunately 'they' is not currently a supported pronoun since it would require conjugating all verbs to a plural form. Please use 'he' or 'she' instead.")
+            }
+          } else {
+            validEntries ++
+            allStudents[i] = {
+              first: line[0],
+              last: line[1],
+              pronoun: line[2],
+              level: line[3],
+              index: i,
+              gender: line[2].toLowerCase() == "he" ? "male" : "female"
+            }
+          }
+        }
+      }
+      if(validEntries == 0){
+        alert("0 students saved to the roster. Make sure students are formatted properly: FirstName,LastName,HeOrShe,Level")
+      } else {
+        localStorage.setItem("SAM_parent_note_generator_allStudents", JSON.stringify(allStudents))
+        alert(validEntries + " students saved to the roster")
+      }
+    }
+    
+    function saveNoteBodyOptions(){
+      noteBodyOptions = []
+      let newOptions = noteBodyOptionsTextArea.value.split("#")
+      for(let i = 0; i < newOptions.length; i ++){
+        //Get everything after the first linebreak of newOptions[i]
+        let firstLineBreakIndex = newOptions[i].indexOf("\n")
+        if(firstLineBreakIndex !== -1){
+          let optionTitle = newOptions[i].slice(0, firstLineBreakIndex)
+          let optionBody = newOptions[i].slice(firstLineBreakIndex + 1)
+          if(optionTitle.length > 0 && optionBody.length > 0){
+            noteBodyOptions.push( {
+              title: optionTitle,
+              body: optionBody
+            } )
+          }
+        }
+      }
+      localStorage.setItem("SAM_parent_note_generator_noteBodyOptions", JSON.stringify(noteBodyOptions))
+      alert("Note body options saved")
+      
+      generateClickableNoteBodyOptions()
+    }
+    
+    function generateClickableNoteBodyOptions(){
+      //Fill clickableNoteBodyOptions with checkable items for each note body option
+      $("#clickableNoteBodyOptions").empty()
+      for(let i = 0; i < noteBodyOptions.length; i++){
+        let option = noteBodyOptions[i]
+        let optionCheckbox = $(`<input type="checkbox" id="option_${i}" class="clickable-note-option-checkbox">`)
+        optionCheckbox.on("keydown", function (event){
+          if(event.key == "Enter"){
+            //Toggle checkbox
+            optionCheckbox.click()
+          }
+          if(event.key == "a"){
+            //Prev checkbox
+            optionCheckbox.prev().prev().focus()
+          }
+          if(event.key == "s"){
+            //Next checkbox
+            optionCheckbox.next().next().focus()
+          }
+          if(event.key == "e"){
+            //First checkbox
+            $("#clickableNoteBodyOptions").children().first().focus()
+          }
+          if(event.key == "r"){
+            //Last checkbox
+            $("#clickableNoteBodyOptions").children().last().prev().focus()
+          }
+          if(event.key == "d"){
+            $("#outputTextArea").focus()
+            outputTextArea.setSelectionRange(0,0)
+            event.preventDefault()
+          }
+          if(event.key == "f"){
+            console.log("f")
+            $("#outputTextArea").focus()
+            event.preventDefault()
+            generateOutput()
+          }
+          if(event.key == "g"){
+            initiatePrint()
+          }
+        })
+        let optionLabel = $(`<label for="option_${i}"></label>`)
+        optionLabel.text(option.title+"\n"+option.body)
+        optionLabel.css("white-space", "pre-line")
+        optionLabel.css("user-select", "none")
+        $("#clickableNoteBodyOptions").append(optionCheckbox)
+        $("#clickableNoteBodyOptions").append(optionLabel)
+        // $("#clickableNoteBodyOptions").append( $("<br>"))
+      }
+    }
+    
+    function setupSaveAndLoadFromLocalStorage(elementID){
+      // console.log("setting up " + elementID + " element")
+      const element = document.getElementById(elementID)
+      element.onkeyup = triggerWithDebounce( ()=>{saveValueToLocalStorage(elementID)}, 300  )
+      loadValueFromLocalStorage(elementID)
+    }
+    function saveValueToLocalStorage(elementID){
+      localStorage.setItem("SAM_parent_note_generator_value_of_"+elementID, document.getElementById(elementID).value)
+      // console.trace("saved value of " + elementID + " to localStorage")
+    }
+    function loadValueFromLocalStorage(elementID){
+      let valueFromLocalStorage = localStorage.getItem("SAM_parent_note_generator_value_of_"+elementID)
+      if(valueFromLocalStorage !== null){
+        document.getElementById(elementID).value = valueFromLocalStorage
+      }
+      // console.log("loaded value of " + elementID + " from localStorage")
+    }
+    
+    
+    function triggerWithDebounce(originalFunction, delayInMilliseconds){
+      //Returns a function that, when triggered, only calls the originalFunction after a delay, and never more than once within [delayInMilliseconds] milliseconds
+      let timerID = null //Create a variable that stores the timeout ID number
+      let onEveryTrigger = function(...args) { //This function will be triggered every time (ex. on every keystroke)
+        clearTimeout(timerID) //Reset the timer, cancelling any previously scheduled function call
+        let onTimerComplete = () => {
+          originalFunction(...args) //Call the original function with any arguments passed in.
+          //This is the same as calling originalFunction.apply(this, args) which would be necessary if we needed to call the originalFunction with the proper "this" context
+        }
+        timerID = setTimeout( onTimerComplete, delayInMilliseconds )
+      }
+      return onEveryTrigger
+    }
+  </script>
+</body>
+</html>

@@ -76,15 +76,15 @@
     
     function initiatePrint(){
       let outputText = $("#outputTextArea").val()
-      let dateText = new Date().toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric"
-      })
+      if(outputText.includes("[") || outputText.includes("]")){
+        alert("Warning: [Square brackets] were found in the generated text. Replace these if necessary.")
+      }
+      let dateTextForTitle = new Date().toLocaleDateString('sv-SE'); // Generates date in yyyy-mm-dd format
+      console.log(dateTextForTitle)
       localStorage.setItem("SAM_parent_note_generator_outputText", outputText)
       let outputTitle = "Parent Note"
       if(selectedStudent){
-        outputTitle = selectedStudent.first + " " + selectedStudent.last + " " + dateText + " Parent Note"
+        outputTitle = selectedStudent.first + " " + selectedStudent.last + " " + dateTextForTitle + " Parent Note"
       }
       localStorage.setItem("SAM_parent_note_generator_outputTitle", outputTitle)
       
@@ -136,6 +136,7 @@
       // if(ctrlOrCmd && event.key == "Enter"){
       if(event.shiftKey && event.key == "Enter"){
         initiatePrint();
+        event.preventDefault();
       }
     }
     

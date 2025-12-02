@@ -84,7 +84,8 @@
       localStorage.setItem("SAM_parent_note_generator_outputText", outputText)
       let outputTitle = "Parent Note"
       if(selectedStudent){
-        outputTitle = selectedStudent.first + " " + selectedStudent.last + " " + dateTextForTitle + " Parent Note"
+        // outputTitle = selectedStudent.first + " " + selectedStudent.last + " " + dateTextForTitle + " Parent Note"
+        outputTitle = dateTextForTitle + " " + selectedStudent.first + " " + selectedStudent.last + " Parent Note"
       }
       localStorage.setItem("SAM_parent_note_generator_outputTitle", outputTitle)
       

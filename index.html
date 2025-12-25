@@ -24,6 +24,7 @@
   <br>
   <button id="generateOutput" onclick="generateOutput()">Generate Note</button>
   <button id="printOutput" onclick="initiatePrint()">Print Note</button>
+  <button id="saveOutput" onclick="saveOutput()">Save Note</button>
   <br>
   <label for="outputTextArea">Output:</label>
   <br>
@@ -72,6 +73,29 @@
       setupSaveAndLoadFromLocalStorage('allStudentsList')
       setupSaveAndLoadFromLocalStorage('noteBodyOptionsTextArea')
       setupSaveAndLoadFromLocalStorage('trainerNameInput')
+    }
+    
+    function saveOutput(){
+      //Save the contents of #outputTextArea to a text file
+      let outputText = $("#outputTextArea").val()
+      let dateTextForTitle = new Date().toLocaleDateString('sv-SE'); // Generates date in yyyy-mm-dd format
+      let outputTitle = "Parent Note"
+      if(selectedStudent){
+        outputTitle = dateTextForTitle + " " + selectedStudent.first + " " + selectedStudent.last + " Parent Note.txt"
+      } else {
+        outputTitle = dateTextForTitle + " Parent Note.txt"
+      }
+
+      const blob = new Blob([outputText], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = outputTitle;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
     }
     
     function initiatePrint(){
